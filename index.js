@@ -2,6 +2,8 @@ const path = require('path');
 const core = require('@actions/core');
 const tmp = require('tmp');
 const fs = require('fs');
+const unset = require('lodash.unset');
+
 const { BatchClient, DescribeJobDefinitionsCommand } = require('@aws-sdk/client-batch');
 
 async function run() {
@@ -18,9 +20,14 @@ async function run() {
       const fetchedJobDef = await new BatchClient().send(new DescribeJobDefinitionsCommand({
         jobDefinitionName,
       }))
-      // eslint-disable-next-line no-unused-vars
-      const { status: _s, revision: _r, jobDefinitionArn: _j, ...cleanedJobDef } = fetchedJobDef["jobDefinitions"][0];
-      jobDefContents = cleanedJobDef;
+
+      jobDefContents = fetchedJobDef["jobDefinitions"][0];
+      unset(jobDefContents, 'containerOrchestrationType');
+      unset(jobDefContents, 'containerProperties.networkConfiguration.interfaceConfigurations');
+      unset(jobDefContents, 'status');
+      unset(jobDefContents, 'revision');
+      unset(jobDefContents, 'jobDefinitionArn');
+
     } else {
       core.info("Task definition will be read from the local file system.");
 

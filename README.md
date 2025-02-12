@@ -19,9 +19,11 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
 ```yaml
     - name: Render Amazon Batch job definition
       id: render-job-def
-      uses: jon-evergreen/amazon-batch-render-job-definition@v1
+      uses: cho0o0/amazon-batch-render-job-definition@v1
       with:
         task-definition: job-definition.json
+        # or directly provide the task definition name on AWS Batch
+        # task-definition-name: task-definition-name-on-aws-batch
         image: amazon/amazon-batch-sample:latest
 
     - name: Register with Amazon Batch service
