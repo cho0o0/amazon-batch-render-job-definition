@@ -2,21 +2,37 @@ const path = require('path');
 const core = require('@actions/core');
 const tmp = require('tmp');
 const fs = require('fs');
+const { BatchClient, DescribeJobDefinitionsCommand } = require('@aws-sdk/client-batch');
 
 async function run() {
   try {
     // Get inputs
-    const jobDefinitionFile = core.getInput('job-definition', { required: true });
     const imageURI = core.getInput('image', { required: true });
+    const jobDefinitionName = core.getInput('job-definition-name', { required: false });
+    const jobDefinitionFile = core.getInput('job-definition', { required: false });
 
-    // Parse the task definition
-    const jobDefPath = path.isAbsolute(jobDefinitionFile) ?
-      jobDefinitionFile :
-      path.join(process.env.GITHUB_WORKSPACE, jobDefinitionFile);
-    if (!fs.existsSync(jobDefPath)) {
-      throw new Error(`Job definition file does not exist: ${jobDefinitionFile}`);
+    let jobDefContents;
+
+    if (jobDefinitionName) {
+      core.info("Task definition will be fetched from AWS Batch.");
+      const fetchedJobDef = await new BatchClient().send(new DescribeJobDefinitionsCommand({
+        jobDefinitionName,
+      }))
+      // eslint-disable-next-line no-unused-vars
+      const { status: _s, revision: _r, jobDefinitionArn: _j, ...cleanedJobDef } = fetchedJobDef["jobDefinitions"][0];
+      jobDefContents = cleanedJobDef;
+    } else {
+      core.info("Task definition will be read from the local file system.");
+
+      // Parse the task definition
+      const jobDefPath = path.isAbsolute(jobDefinitionFile) ?
+        jobDefinitionFile :
+        path.join(process.env.GITHUB_WORKSPACE, jobDefinitionFile);
+      if (!fs.existsSync(jobDefPath)) {
+        throw new Error(`Job definition file does not exist: ${jobDefinitionFile}`);
+      }
+      jobDefContents = require(jobDefPath);
     }
-    const jobDefContents = require(jobDefPath);
 
     // Insert the image URI
     const containerProp = jobDefContents.containerProperties;
