@@ -12,6 +12,7 @@ async function run() {
     const imageURI = core.getInput('image', { required: true });
     const jobDefinitionName = core.getInput('job-definition-name', { required: false });
     const jobDefinitionFile = core.getInput('job-definition', { required: false });
+    const commandToOverride = core.getInput('command-to-override', { required: false });
 
     let jobDefContents;
 
@@ -20,6 +21,10 @@ async function run() {
       const fetchedJobDef = await new BatchClient().send(new DescribeJobDefinitionsCommand({
         jobDefinitionName,
       }))
+
+      if (!fetchedJobDef.jobDefinitions || fetchedJobDef.jobDefinitions.length === 0) {
+        throw new Error('No job definitions found');
+      }
 
       jobDefContents = fetchedJobDef["jobDefinitions"][0];
       unset(jobDefContents, 'containerOrchestrationType');
@@ -47,6 +52,12 @@ async function run() {
       throw new Error('Invalid job definition: Could not find container properties');
     }
     containerProp.image = imageURI;
+
+    // Override command if provided
+    if (commandToOverride) {
+      containerProp.command = commandToOverride.split(' ');
+      core.info(`Command overridden with: ${commandToOverride}`);
+    }
 
     // Write out a new task definition file
     var updatedjobDefFile = tmp.fileSync({

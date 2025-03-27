@@ -13,6 +13,9 @@ inputs:
   image:
     description: "The URI of the container image to insert into the Batch job definition"
     required: true
+  command-to-override:
+    description: "The command to override in the job definition (e.g. 'python -m src.main')"
+    required: false
 outputs:
   job-definition:
     description: "The path to the rendered task definition file"
