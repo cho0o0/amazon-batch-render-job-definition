@@ -40,6 +40,7 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
 | `job-definition-name` | The name of the Batch job definition to update | No | - |
 | `image` | The URI of the container image to insert into the Batch job definition | Yes | - |
 | `command-to-override` | The command to override in the job definition (e.g. 'python -m src.main') | No | - |
+| `exclude-tags` | Comma-separated list of tag keys to exclude from the rendered job definition | No | - |
 
 ## Outputs
 
@@ -86,6 +87,20 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
         job-definition: job-definition.json
         image: amazon/amazon-batch-sample:latest
         command-to-override: "python -m src.main"
+```
+
+### Excluding Tags from Job Definition
+
+When fetching a job definition from AWS Batch, you may want to exclude certain tags from the rendered output. This is useful when tags like `Environment` or `CostCenter` should not be included in the new job definition.
+
+```yaml
+    - name: Render Amazon Batch job definition
+      id: render-job-def
+      uses: cho0o0/amazon-batch-render-job-definition@v1
+      with:
+        job-definition-name: my-batch-job
+        image: amazon/amazon-batch-sample:latest
+        exclude-tags: "Environment, CostCenter, ManagedBy"
 ```
 
 ## License Summary

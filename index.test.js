@@ -271,7 +271,7 @@ describe('Render job definition', () => {
 
         await run();
 
-        expect(core.setFailed).toBeCalledWith('Job definition file does not exist: does-not-exist-job-definition.json');
+        expect(core.setFailed).toHaveBeenCalledWith('Job definition file does not exist: does-not-exist-job-definition.json');
     });
 
     test('error returned for job definition without container props', async () => {
@@ -294,6 +294,195 @@ describe('Render job definition', () => {
 
         await run();
 
-        expect(core.setFailed).toBeCalledWith('Invalid job definition: Could not find container properties');
+        expect(core.setFailed).toHaveBeenCalledWith('Invalid job definition: Could not find container properties');
+    });
+
+    test('excludes specified tags from job definition fetched from AWS Batch', async () => {
+        mockBatchClient.send.mockResolvedValue({
+            jobDefinitions: [{
+                type: 'container',
+                containerProperties: {
+                    image: "some-other-image",
+                    command: ["python", "script.py"]
+                },
+                tags: {
+                    Environment: 'production',
+                    Team: 'platform',
+                    CostCenter: '12345'
+                },
+                status: 'ACTIVE',
+                revision: 1,
+                jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:1'
+            }]
+        });
+
+        core.getInput = jest
+            .fn()
+            .mockImplementation((name) => {
+                switch (name) {
+                    case 'job-definition-name':
+                        return 'my-batch-job';
+                    case 'image':
+                        return 'nginx:latest';
+                    case 'exclude-tags':
+                        return 'Environment, CostCenter';
+                    default:
+                        return '';
+                }
+            });
+
+        await run();
+
+        expect(fs.writeFileSync).toHaveBeenNthCalledWith(1, 'new-job-def-file-name',
+            JSON.stringify({
+                type: 'container',
+                containerProperties: {
+                    image: "nginx:latest",
+                    command: ["python", "script.py"]
+                },
+                tags: {
+                    Team: 'platform'
+                }
+            }, null, 2)
+        );
+        expect(core.info).toHaveBeenCalledWith('Excluded tag: Environment');
+        expect(core.info).toHaveBeenCalledWith('Excluded tag: CostCenter');
+    });
+
+    test('removes tags object when all tags are excluded', async () => {
+        mockBatchClient.send.mockResolvedValue({
+            jobDefinitions: [{
+                type: 'container',
+                containerProperties: {
+                    image: "some-other-image",
+                    command: ["python", "script.py"]
+                },
+                tags: {
+                    Environment: 'production'
+                },
+                status: 'ACTIVE',
+                revision: 1,
+                jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:1'
+            }]
+        });
+
+        core.getInput = jest
+            .fn()
+            .mockImplementation((name) => {
+                switch (name) {
+                    case 'job-definition-name':
+                        return 'my-batch-job';
+                    case 'image':
+                        return 'nginx:latest';
+                    case 'exclude-tags':
+                        return 'Environment';
+                    default:
+                        return '';
+                }
+            });
+
+        await run();
+
+        expect(fs.writeFileSync).toHaveBeenNthCalledWith(1, 'new-job-def-file-name',
+            JSON.stringify({
+                type: 'container',
+                containerProperties: {
+                    image: "nginx:latest",
+                    command: ["python", "script.py"]
+                }
+            }, null, 2)
+        );
+    });
+
+    test('handles exclude-tags gracefully when tags do not exist in job definition', async () => {
+        // Use AWS Batch fetch to avoid require cache issues with local file mocks
+        mockBatchClient.send.mockResolvedValue({
+            jobDefinitions: [{
+                type: 'container',
+                containerProperties: {
+                    image: "some-other-image",
+                    command: ["python", "script.py"]
+                },
+                // No tags property
+                status: 'ACTIVE',
+                revision: 1,
+                jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:1'
+            }]
+        });
+
+        core.getInput = jest
+            .fn()
+            .mockImplementation((name) => {
+                switch (name) {
+                    case 'job-definition-name':
+                        return 'my-batch-job';
+                    case 'image':
+                        return 'nginx:latest';
+                    case 'exclude-tags':
+                        return 'NonExistentTag';
+                    default:
+                        return '';
+                }
+            });
+
+        await run();
+
+        expect(fs.writeFileSync).toHaveBeenNthCalledWith(1, 'new-job-def-file-name',
+            JSON.stringify({
+                type: 'container',
+                containerProperties: {
+                    image: "nginx:latest",
+                    command: ["python", "script.py"]
+                }
+            }, null, 2)
+        );
+    });
+
+    test('handles exclude-tags when job definition has tags but specified tag does not exist', async () => {
+        mockBatchClient.send.mockResolvedValue({
+            jobDefinitions: [{
+                type: 'container',
+                containerProperties: {
+                    image: "some-other-image",
+                    command: ["python", "script.py"]
+                },
+                tags: {
+                    Environment: 'production'
+                },
+                status: 'ACTIVE',
+                revision: 1,
+                jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:1'
+            }]
+        });
+
+        core.getInput = jest
+            .fn()
+            .mockImplementation((name) => {
+                switch (name) {
+                    case 'job-definition-name':
+                        return 'my-batch-job';
+                    case 'image':
+                        return 'nginx:latest';
+                    case 'exclude-tags':
+                        return 'NonExistentTag';
+                    default:
+                        return '';
+                }
+            });
+
+        await run();
+
+        expect(fs.writeFileSync).toHaveBeenNthCalledWith(1, 'new-job-def-file-name',
+            JSON.stringify({
+                type: 'container',
+                containerProperties: {
+                    image: "nginx:latest",
+                    command: ["python", "script.py"]
+                },
+                tags: {
+                    Environment: 'production'
+                }
+            }, null, 2)
+        );
     });
 });

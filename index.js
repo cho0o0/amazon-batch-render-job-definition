@@ -13,6 +13,7 @@ async function run() {
     const jobDefinitionName = core.getInput('job-definition-name', { required: false });
     const jobDefinitionFile = core.getInput('job-definition', { required: false });
     const commandToOverride = core.getInput('command-to-override', { required: false });
+    const excludeTags = core.getInput('exclude-tags', { required: false });
 
     let jobDefContents;
 
@@ -57,6 +58,21 @@ async function run() {
     if (commandToOverride) {
       containerProp.command = commandToOverride.split(' ');
       core.info(`Command overridden with: ${commandToOverride}`);
+    }
+
+    // Exclude specified tags if provided
+    if (excludeTags && jobDefContents.tags) {
+      const tagsToExclude = excludeTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      for (const tagKey of tagsToExclude) {
+        if (jobDefContents.tags[tagKey] !== undefined) {
+          delete jobDefContents.tags[tagKey];
+          core.info(`Excluded tag: ${tagKey}`);
+        }
+      }
+      // Remove empty tags object
+      if (Object.keys(jobDefContents.tags).length === 0) {
+        delete jobDefContents.tags;
+      }
     }
 
     // Write out a new task definition file
