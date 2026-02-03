@@ -16,9 +16,12 @@ inputs:
   command-to-override:
     description: "The command to override in the job definition (e.g. 'python -m src.main')"
     required: false
+  exclude-tags:
+    description: "Comma-separated list of tag keys to exclude from the rendered job definition"
+    required: false
 outputs:
   job-definition:
     description: "The path to the rendered task definition file"
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/index.js"

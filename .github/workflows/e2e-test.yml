@@ -1,0 +1,250 @@
+on:
+  [pull_request, workflow_dispatch]
+
+name: E2E Test
+
+jobs:
+  e2e-test:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create test job definition
+        run: |
+          cat > test-job-definition.json << 'EOF'
+          {
+            "type": "container",
+            "jobDefinitionName": "test-job",
+            "containerProperties": {
+              "image": "old-image:v1",
+              "command": ["echo", "hello"],
+              "vcpus": 1,
+              "memory": 512
+            },
+            "tags": {
+              "Environment": "production",
+              "Team": "platform",
+              "CostCenter": "12345"
+            }
+          }
+          EOF
+
+      - name: Test basic image rendering
+        id: render-basic
+        uses: ./
+        with:
+          job-definition: test-job-definition.json
+          image: nginx:latest
+
+      - name: Validate basic rendering
+        run: |
+          echo "Rendered job definition:"
+          cat "${{ steps.render-basic.outputs.job-definition }}"
+
+          # Validate image was updated
+          IMAGE=$(jq -r '.containerProperties.image' "${{ steps.render-basic.outputs.job-definition }}")
+          if [ "$IMAGE" != "nginx:latest" ]; then
+            echo "ERROR: Expected image 'nginx:latest', got '$IMAGE'"
+            exit 1
+          fi
+          echo "Basic image rendering: PASSED"
+
+      - name: Test command override
+        id: render-command
+        uses: ./
+        with:
+          job-definition: test-job-definition.json
+          image: python:3.11
+          command-to-override: "python -m src.main --verbose"
+
+      - name: Validate command override
+        run: |
+          echo "Rendered job definition with command override:"
+          cat "${{ steps.render-command.outputs.job-definition }}"
+
+          # Validate image was updated
+          IMAGE=$(jq -r '.containerProperties.image' "${{ steps.render-command.outputs.job-definition }}")
+          if [ "$IMAGE" != "python:3.11" ]; then
+            echo "ERROR: Expected image 'python:3.11', got '$IMAGE'"
+            exit 1
+          fi
+
+          # Validate command was overridden
+          COMMAND=$(jq -c '.containerProperties.command' "${{ steps.render-command.outputs.job-definition }}")
+          EXPECTED='["python","-m","src.main","--verbose"]'
+          if [ "$COMMAND" != "$EXPECTED" ]; then
+            echo "ERROR: Expected command '$EXPECTED', got '$COMMAND'"
+            exit 1
+          fi
+          echo "Command override: PASSED"
+
+      - name: Test exclude tags
+        id: render-exclude-tags
+        uses: ./
+        with:
+          job-definition: test-job-definition.json
+          image: alpine:latest
+          exclude-tags: "Environment, CostCenter"
+
+      - name: Validate exclude tags
+        run: |
+          echo "Rendered job definition with excluded tags:"
+          cat "${{ steps.render-exclude-tags.outputs.job-definition }}"
+
+          # Validate image was updated
+          IMAGE=$(jq -r '.containerProperties.image' "${{ steps.render-exclude-tags.outputs.job-definition }}")
+          if [ "$IMAGE" != "alpine:latest" ]; then
+            echo "ERROR: Expected image 'alpine:latest', got '$IMAGE'"
+            exit 1
+          fi
+
+          # Validate Environment tag was excluded
+          ENV_TAG=$(jq -r '.tags.Environment // "null"' "${{ steps.render-exclude-tags.outputs.job-definition }}")
+          if [ "$ENV_TAG" != "null" ]; then
+            echo "ERROR: Expected 'Environment' tag to be excluded, but found '$ENV_TAG'"
+            exit 1
+          fi
+
+          # Validate CostCenter tag was excluded
+          COST_TAG=$(jq -r '.tags.CostCenter // "null"' "${{ steps.render-exclude-tags.outputs.job-definition }}")
+          if [ "$COST_TAG" != "null" ]; then
+            echo "ERROR: Expected 'CostCenter' tag to be excluded, but found '$COST_TAG'"
+            exit 1
+          fi
+
+          # Validate Team tag was kept
+          TEAM_TAG=$(jq -r '.tags.Team' "${{ steps.render-exclude-tags.outputs.job-definition }}")
+          if [ "$TEAM_TAG" != "platform" ]; then
+            echo "ERROR: Expected 'Team' tag to be 'platform', got '$TEAM_TAG'"
+            exit 1
+          fi
+          echo "Exclude tags: PASSED"
+
+      - name: Test exclude all tags
+        id: render-exclude-all-tags
+        uses: ./
+        with:
+          job-definition: test-job-definition.json
+          image: busybox:latest
+          exclude-tags: "Environment, Team, CostCenter"
+
+      - name: Validate exclude all tags removes tags object
+        run: |
+          echo "Rendered job definition with all tags excluded:"
+          cat "${{ steps.render-exclude-all-tags.outputs.job-definition }}"
+
+          # Validate tags object is removed entirely
+          TAGS=$(jq -r '.tags // "removed"' "${{ steps.render-exclude-all-tags.outputs.job-definition }}")
+          if [ "$TAGS" != "removed" ]; then
+            echo "ERROR: Expected 'tags' object to be removed when all tags excluded, but found: $TAGS"
+            exit 1
+          fi
+          echo "Exclude all tags: PASSED"
+
+      # Error handling tests
+      - name: Test missing job definition file (should fail)
+        id: render-missing-file
+        uses: ./
+        continue-on-error: true
+        with:
+          job-definition: non-existent-file.json
+          image: nginx:latest
+
+      - name: Validate missing file error
+        run: |
+          if [ "${{ steps.render-missing-file.outcome }}" != "failure" ]; then
+            echo "ERROR: Expected action to fail for missing file, but it succeeded"
+            exit 1
+          fi
+          echo "Missing file error handling: PASSED"
+
+      - name: Create job definition without containerProperties
+        run: |
+          cat > invalid-job-definition.json << 'EOF'
+          {
+            "type": "container",
+            "jobDefinitionName": "invalid-job"
+          }
+          EOF
+
+      - name: Test missing containerProperties (should fail)
+        id: render-missing-container
+        uses: ./
+        continue-on-error: true
+        with:
+          job-definition: invalid-job-definition.json
+          image: nginx:latest
+
+      - name: Validate missing containerProperties error
+        run: |
+          if [ "${{ steps.render-missing-container.outcome }}" != "failure" ]; then
+            echo "ERROR: Expected action to fail for missing containerProperties, but it succeeded"
+            exit 1
+          fi
+          echo "Missing containerProperties error handling: PASSED"
+
+      - name: Create job definition with empty containerProperties
+        run: |
+          cat > empty-container-job-definition.json << 'EOF'
+          {
+            "type": "container",
+            "jobDefinitionName": "empty-container-job",
+            "containerProperties": {}
+          }
+          EOF
+
+      - name: Test empty containerProperties (should succeed)
+        id: render-empty-container
+        uses: ./
+        with:
+          job-definition: empty-container-job-definition.json
+          image: nginx:latest
+
+      - name: Validate empty containerProperties handling
+        run: |
+          echo "Rendered job definition with empty containerProperties:"
+          cat "${{ steps.render-empty-container.outputs.job-definition }}"
+
+          IMAGE=$(jq -r '.containerProperties.image' "${{ steps.render-empty-container.outputs.job-definition }}")
+          if [ "$IMAGE" != "nginx:latest" ]; then
+            echo "ERROR: Expected image 'nginx:latest', got '$IMAGE'"
+            exit 1
+          fi
+          echo "Empty containerProperties handling: PASSED"
+
+      - name: Test with absolute path
+        id: render-absolute-path
+        uses: ./
+        with:
+          job-definition: ${{ github.workspace }}/test-job-definition.json
+          image: redis:alpine
+
+      - name: Validate absolute path handling
+        run: |
+          echo "Rendered job definition with absolute path:"
+          cat "${{ steps.render-absolute-path.outputs.job-definition }}"
+
+          IMAGE=$(jq -r '.containerProperties.image' "${{ steps.render-absolute-path.outputs.job-definition }}")
+          if [ "$IMAGE" != "redis:alpine" ]; then
+            echo "ERROR: Expected image 'redis:alpine', got '$IMAGE'"
+            exit 1
+          fi
+          echo "Absolute path handling: PASSED"
+
+      - name: All E2E tests passed
+        run: |
+          echo "================================"
+          echo "All E2E tests passed successfully!"
+          echo "================================"
+          echo ""
+          echo "Tests completed:"
+          echo "  - Basic image rendering"
+          echo "  - Command override"
+          echo "  - Exclude tags"
+          echo "  - Exclude all tags"
+          echo "  - Missing file error handling"
+          echo "  - Missing containerProperties error handling"
+          echo "  - Empty containerProperties handling"
+          echo "  - Absolute path handling"
