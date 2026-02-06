@@ -22,7 +22,7 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
 ```yaml
     - name: Render Amazon Batch job definition
       id: render-job-def
-      uses: cho0o0/amazon-batch-render-job-definition@v1
+      uses: cho0o0/amazon-batch-render-job-definition@v1.3.0
       with:
         job-definition: job-definition.json
         # or directly provide the task definition name on AWS Batch
@@ -55,7 +55,7 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
 ```yaml
     - name: Render Amazon Batch job definition
       id: render-job-def
-      uses: cho0o0/amazon-batch-render-job-definition@v1
+      uses: cho0o0/amazon-batch-render-job-definition@v1.3.0
       with:
         job-definition: job-definition.json
         image: amazon/amazon-batch-sample:latest
@@ -71,7 +71,7 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
 ```yaml
     - name: Render Amazon Batch job definition
       id: render-job-def
-      uses: cho0o0/amazon-batch-render-job-definition@v1
+      uses: cho0o0/amazon-batch-render-job-definition@v1.3.0
       with:
         job-definition-name: my-batch-job
         image: amazon/amazon-batch-sample:latest
@@ -82,7 +82,7 @@ To insert the image URI `amazon/amazon-batch-sample:latest` as the image in the 
 ```yaml
     - name: Render Amazon Batch job definition
       id: render-job-def
-      uses: cho0o0/amazon-batch-render-job-definition@v1
+      uses: cho0o0/amazon-batch-render-job-definition@v1.3.0
       with:
         job-definition: job-definition.json
         image: amazon/amazon-batch-sample:latest
@@ -96,7 +96,7 @@ When fetching a job definition from AWS Batch, you may want to exclude certain t
 ```yaml
     - name: Render Amazon Batch job definition
       id: render-job-def
-      uses: cho0o0/amazon-batch-render-job-definition@v1
+      uses: cho0o0/amazon-batch-render-job-definition@v1.3.0
       with:
         job-definition-name: my-batch-job
         image: amazon/amazon-batch-sample:latest
