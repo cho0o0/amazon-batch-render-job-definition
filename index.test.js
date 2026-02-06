@@ -159,7 +159,8 @@ describe('Render job definition', () => {
 
         expect(BatchClient).toHaveBeenCalled();
         expect(DescribeJobDefinitionsCommand).toHaveBeenCalledWith({
-            jobDefinitionName: 'my-batch-job'
+            jobDefinitionName: 'my-batch-job',
+            status: 'ACTIVE',
         });
         expect(mockBatchClient.send).toHaveBeenCalled();
         expect(fs.writeFileSync).toHaveBeenNthCalledWith(1, 'new-job-def-file-name',
@@ -389,6 +390,68 @@ describe('Render job definition', () => {
                 containerProperties: {
                     image: "nginx:latest",
                     command: ["python", "script.py"]
+                }
+            }, null, 2)
+        );
+    });
+
+    test('selects the latest revision when multiple job definitions are returned', async () => {
+        mockBatchClient.send.mockResolvedValue({
+            jobDefinitions: [
+                {
+                    type: 'container',
+                    containerProperties: {
+                        image: "old-image",
+                        command: ["python", "old-script.py"]
+                    },
+                    status: 'ACTIVE',
+                    revision: 1,
+                    jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:1',
+                },
+                {
+                    type: 'container',
+                    containerProperties: {
+                        image: "newest-image",
+                        command: ["python", "newest-script.py"]
+                    },
+                    status: 'ACTIVE',
+                    revision: 3,
+                    jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:3',
+                },
+                {
+                    type: 'container',
+                    containerProperties: {
+                        image: "middle-image",
+                        command: ["python", "middle-script.py"]
+                    },
+                    status: 'ACTIVE',
+                    revision: 2,
+                    jobDefinitionArn: 'arn:aws:batch:region:account:job-definition/name:2',
+                }
+            ]
+        });
+
+        core.getInput = jest
+            .fn()
+            .mockImplementation((name) => {
+                switch (name) {
+                    case 'job-definition-name':
+                        return 'my-batch-job';
+                    case 'image':
+                        return 'nginx:latest';
+                    default:
+                        return '';
+                }
+            });
+
+        await run();
+
+        expect(fs.writeFileSync).toHaveBeenNthCalledWith(1, 'new-job-def-file-name',
+            JSON.stringify({
+                type: 'container',
+                containerProperties: {
+                    image: "nginx:latest",
+                    command: ["python", "newest-script.py"]
                 }
             }, null, 2)
         );
