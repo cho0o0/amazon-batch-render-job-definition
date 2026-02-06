@@ -21,6 +21,7 @@ async function run() {
       core.info("Task definition will be fetched from AWS Batch.");
       const fetchedJobDef = await new BatchClient().send(new DescribeJobDefinitionsCommand({
         jobDefinitionName,
+        status: 'ACTIVE',
       }))
 
       if (!fetchedJobDef.jobDefinitions || fetchedJobDef.jobDefinitions.length === 0) {
