@@ -27,7 +27,7 @@ async function run() {
         throw new Error('No job definitions found');
       }
 
-      jobDefContents = fetchedJobDef["jobDefinitions"][0];
+      jobDefContents = fetchedJobDef.jobDefinitions.sort((a, b) => b.revision - a.revision)[0];
       unset(jobDefContents, 'containerOrchestrationType');
       unset(jobDefContents, 'containerProperties.networkConfiguration.interfaceConfigurations');
       unset(jobDefContents, 'status');
