@@ -21,13 +21,14 @@ async function run() {
       core.info("Task definition will be fetched from AWS Batch.");
       const fetchedJobDef = await new BatchClient().send(new DescribeJobDefinitionsCommand({
         jobDefinitionName,
+        status: 'ACTIVE',
       }))
 
       if (!fetchedJobDef.jobDefinitions || fetchedJobDef.jobDefinitions.length === 0) {
         throw new Error('No job definitions found');
       }
 
-      jobDefContents = fetchedJobDef["jobDefinitions"][0];
+      jobDefContents = fetchedJobDef.jobDefinitions.sort((a, b) => b.revision - a.revision)[0];
       unset(jobDefContents, 'containerOrchestrationType');
       unset(jobDefContents, 'containerProperties.networkConfiguration.interfaceConfigurations');
       unset(jobDefContents, 'status');
